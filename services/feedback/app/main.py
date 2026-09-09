@@ -50,12 +50,11 @@ def _init_db() -> None:
                 request_id TEXT PRIMARY KEY,
                 true_label INTEGER NOT NULL,
                 comments   TEXT,
-                created_at TEXT NOT NULL
-                -- TODO 1 (brique B) — ajoutez `used_for_training`
-                -- (INTEGER NOT NULL DEFAULT 0).
-                -- Sans cette colonne, le trigger ne peut compter que le TOTAL,
-                -- et le cron redéclenche un réentraînement toutes les 6 h sur
-                -- les mêmes données une fois le seuil franchi.
+                created_at TEXT NOT NULL,
+                used_for_training INTEGER NOT NULL DEFAULT 0
+                -- TODO 1 (brique B) — on garde le flag de consommation pour
+                -- compter uniquement les feedbacks non encore utilisés par le
+                -- trigger de réentraînement.
             )"""
         )
 
@@ -82,9 +81,12 @@ async def count() -> dict[str, int]:
     """Volume de feedbacks : total et non encore consommés."""
     with sqlite3.connect(DB_PATH) as con:
         total = con.execute("SELECT COUNT(*) FROM feedbacks").fetchone()[0]
-    # TODO 2 (brique B) — renvoyez aussi `new` : le nombre de feedbacks
-    # avec used_for_training = 0. C'est CETTE valeur que le trigger doit lire.
-    return {"count": int(total)}
+        new = con.execute(
+            "SELECT COUNT(*) FROM feedbacks WHERE used_for_training = 0"
+        ).fetchone()[0]
+    # TODO 2 (brique B) — la clé `new` est la donnée lue par le trigger.
+    # C'est elle qui décide si on déclenche ou non le réentraînement.
+    return {"count": int(total), "new": int(new)}
 
 
 @app.post("/feedback", status_code=status.HTTP_201_CREATED)
@@ -96,15 +98,29 @@ async def post_feedback(fb: Feedback) -> dict[str, str]:
         )
 
     with sqlite3.connect(DB_PATH) as con:
-        # TODO 3 (brique A) — gérez le conflit AVANT d'écrire :
-        #   - lisez le true_label déjà stocké pour ce request_id ;
-        #   - s'il est identique     → réponse idempotente, pas de doublon ;
-        #   - s'il est différent     → HTTP 409, avec un message explicite.
-        # ⚠️ N'utilisez PAS `INSERT OR REPLACE` : il écrase silencieusement la
-        # première vérité terrain (et en SQLite, c'est un DELETE + INSERT).
+        # TODO 3 (brique A) — on vérifie explicitement le cas de conflit avant
+        # d'écrire dans la table afin d'éviter un overwrite silencieux.
+        existing_label = con.execute(
+            "SELECT true_label FROM feedbacks WHERE request_id = ?",
+            (fb.request_id,),
+        ).fetchone()
+
+        if existing_label is not None:
+            if existing_label[0] == fb.true_label:
+                # Idempotence : même feedback reçu une seconde fois → pas de doublon.
+                return {"status": "already_registered", "request_id": fb.request_id}
+            # Contradiction métier : un même dossier ne peut pas avoir deux vérités.
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"feedback contradictoire pour request_id {fb.request_id}: "
+                    f"{existing_label[0]} != {fb.true_label}"
+                ),
+            )
+
         con.execute(
-            "INSERT INTO feedbacks (request_id, true_label, comments, created_at) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO feedbacks (request_id, true_label, comments, created_at, used_for_training) "
+            "VALUES (?, ?, ?, ?, 0)",
             (
                 fb.request_id,
                 fb.true_label,
