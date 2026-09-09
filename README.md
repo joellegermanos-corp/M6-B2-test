@@ -51,6 +51,27 @@ serez seul·e à expliquer cette boucle.
 > Contrats d'interface, seuils et politique de promotion : à figer dans
 > `decisions_TEMPLATE.md` **avant** de coder.
 
+## 🔁 Boucle de rétroaction
+
+```mermaid
+flowchart LR
+    A[Scoring en production] --> B[Collecte du vrai label a posteriori]
+    B --> C[Validation request_id + true_label]
+    C --> D[Stockage SQLite feedbacks]
+    D --> E{Nombre de feedbacks non consommés >= seuil ?}
+    E -- Non --> F[Stop : pas de retrain]
+    E -- Oui --> G[Construction du jeu d'entraînement]
+    G --> H[Entraînement du candidat]
+    H --> I[Contrat de sortie : proba dans [0,1]]
+    I --> J[Évaluation candidat vs production]
+    J --> K{Politique de promotion}
+    K -- Rejet --> L[Journalisation + aucun tag]
+    K -- Promote --> M[Version v2.1.0 + tag]
+```
+
+La boucle est donc : feedback → stockage → seuil → retrain → évaluation → promotion conditionnelle.
+Le réentraînement ne déclenche pas automatiquement le déploiement : le candidat n'est promu que s'il respecte la politique de qualité explicite.
+
 ## ✅ Réussite
 
 - `/feedback` accepte ≥ 200 annotations ; `request_id` inconnu → 404 ;
