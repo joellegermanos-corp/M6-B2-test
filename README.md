@@ -55,18 +55,18 @@ serez seul·e à expliquer cette boucle.
 
 ```mermaid
 flowchart LR
-    A[Scoring en production] --> B[Collecte du vrai label a posteriori]
-    B --> C[Validation request_id + true_label]
-    C --> D[Stockage SQLite feedbacks]
-    D --> E{Nombre de feedbacks non consommés >= seuil ?}
-    E -- Non --> F[Stop : pas de retrain]
-    E -- Oui --> G[Construction du jeu d'entraînement]
-    G --> H[Entraînement du candidat]
-    H --> I[Contrat de sortie : proba dans [0,1]]
-    I --> J[Évaluation candidat vs production]
-    J --> K{Politique de promotion}
-    K -- Rejet --> L[Journalisation + aucun tag]
-    K -- Promote --> M[Version v2.1.0 + tag]
+    A[Scoring prod] --> B[Collecte vrai label]
+    B --> C[Validation request_id]
+    C --> D[Stockage SQLite]
+    D --> E{Seuil atteint ?}
+    E -- Non --> F[Stop]
+    E -- Oui --> G[Creation dataset]
+    G --> H[Train candidat]
+    H --> I[Contrat proba]
+    I --> J[Eval candidat]
+    J --> K{Promotion ?}
+    K -- Non --> L[Log + rejet]
+    K -- Oui --> M[Tag v2.1.0]
 ```
 
 La boucle est donc : feedback → stockage → seuil → retrain → évaluation → promotion conditionnelle.
