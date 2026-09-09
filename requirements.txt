@@ -1,0 +1,10 @@
+# M6-B2 — boucle de rétroaction (Python 3.11+)
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+joblib==1.4.2
+pytest==8.3.3
+httpx==0.28.1
