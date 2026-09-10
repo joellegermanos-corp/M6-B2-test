@@ -61,7 +61,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build model image
-        run: docker build -t pyrenex-model:${{ github.sha }} ./services/model
+        run: docker build -f services/model/Dockerfile -t pyrenex-model:${{ github.sha }} .
 
   retrain:
     needs: validate-loop
