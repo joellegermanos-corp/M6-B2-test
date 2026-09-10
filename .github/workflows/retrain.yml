@@ -24,7 +24,8 @@ on:
     - cron: '0 */6 * * *'
 
 jobs:
-  validate-loop:
+  run-tests:
+    name: Run feedback and API tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -50,7 +51,7 @@ jobs:
           pytest -q services/model/tests/test_api.py
 
   build-image:
-    needs: validate-loop
+    needs: run-tests
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -64,7 +65,7 @@ jobs:
         run: docker build -f services/model/Dockerfile -t pyrenex-model:${{ github.sha }} .
 
   retrain:
-    needs: validate-loop
+    needs: run-tests
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
