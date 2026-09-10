@@ -45,7 +45,7 @@ jobs:
         run: |
           pytest -q tests/test_boucle.py
 
-      - name: Run model contract tests
+      - name: Run API tests
         run: |
           pytest -q services/model/tests/test_api.py
 
