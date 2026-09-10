@@ -1,7 +1,7 @@
 {
   "config_name": "balanced",
-  "created_at": "2026-09-10T09:28:54.496817+00:00",
-  "dataset_sha256": "97d6cd7022c9f1ccd24b5e4e6ebddfe626c42cb9a5bd9e9636d116574c25210f",
+  "created_at": "2026-09-10T12:59:28.259318+00:00",
+  "dataset_sha256": "547f46347fc05222523069bfb4752409e7e02edc36e024f81c2eb40b14f069b1",
   "feature_columns_categorical": [
     "term",
     "grade",
@@ -30,9 +30,9 @@
     "random_state": 42
   },
   "metrics_holdout": {
-    "f1_macro": 0.6033378386319563,
-    "recall_default": 0.6813186813186813,
-    "roc_auc": 0.7275853730621457
+    "f1_macro": 0.6066089693154996,
+    "recall_default": 0.6923076923076923,
+    "roc_auc": 0.7309170047556357
   },
   "metrics_test_internal": {
     "f1_default": 0.4287,
