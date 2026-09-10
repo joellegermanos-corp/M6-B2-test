@@ -1,55 +1,24 @@
-# M6-B2 — Implémenter la boucle de rétroaction complète (Pyrenex, binôme)
+# M6-B2 — Boucle de rétroaction Pyrenex
 
-> **Repo template.** Un binôme fait **« Use this template »** →
-> `M6-B2-pyrenex-boucle-<binome>` et invite l'autre membre en collaborateur.
-> Vous restez avec le binôme de M6-B1 : vous continuez sur votre diagnostic.
-
-## 🚀 Démarrage
+## 🚀 Démarrage rapide
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate  # ou .venv\Scripts\activate sous Windows
 pip install -r requirements.txt
-pytest -q tests                                   # vert dès le clone ; se durcit avec vos TODO
-python scripts/retrain.py --min-feedback 200      # une fois retrain.py complété
+pytest -q tests
+pytest -q services/model/tests/test_api.py
+python scripts/retrain.py --min-feedback 200
 ```
 
-> Variante `uv` : `uv venv .venv && source .venv/bin/activate` puis
-> `uv pip install -r requirements.txt`.
-> Dépannage : `No module named pip` → vous êtes dans un venv créé par `uv`,
-> utilisez `uv pip install …` (pas `pip install`).
+Le repo met à disposition les données et modèles suivants :
 
-Données fournies : `data/feedbacks_simules.csv` (200 à injecter), `prod_scored.csv`,
-`lending_club_train.csv`, `reference_set.csv`. Modèle de base : `models/pyrenex_risk_v2.joblib`.
-
-> ⚠️ **Premier geste : trancher le jeu de référence.** Le `data/reference_set.csv`
-> livré ici fait **1500 lignes (17,5 % de défauts)** — ce n'est **pas** celui de
-> votre M5-B2 (500 lignes). Or le plancher de votre politique de promotion vient
-> de vos **seuils M5-B2**, calibrés sur *votre* jeu. Par défaut : **remplacez ce
-> fichier par le vôtre**. Sinon, regelez le golden run et refaites le bootstrap.
-> Décision + raison dans `decisions.md` (section « Jeu de référence retenu »).
-
-## 🧭 Ce que vous construisez
-
-Vous construisez **la boucle entière**, à deux. Répartissez-vous les briques,
-mais **switchez à mi-parcours** : à la fin, chacun doit avoir écrit la partie
-qui compte — la **décision de promotion**. En soutenance de certification, vous
-serez seul·e à expliquer cette boucle.
-
-| Brique | À faire | Fichier | Mini-cours |
-|---|---|---|---|
-| A — Endpoint | `POST /feedback` : valide, stocke, 404 / 409 / idempotent | `services/feedback/` | `01` |
-| B — Stockage | SQLite + `used_for_training` + jointure `request_id` | (idem) | `02` |
-| C — Réentraînement | `retrain.py` : données → **candidat** → évaluation | `scripts/retrain_TEMPLATE.py` | `04` |
-| D — **Promotion** | `decide_promotion()` : la règle qui autorise le déploiement | `scripts/promotion_TEMPLATE.py` | `04`, `05` |
-| E — Trigger + CI | cron / `workflow_dispatch`, garde-seuil | `crontab_TEMPLATE.txt`, `.github/workflows/ci.yml` | `03` |
-
-> ⚠️ **Deux questions distinctes.** Le **trigger** répond à *« pourquoi
-> réentraîner ? »*. La **promotion** répond à *« pourquoi déployer ? »*. Un
-> réentraînement déclenché n'implique aucune mise en production : rejeter un
-> candidat est une issue normale, tracée et défendable.
-
-> Contrats d'interface, seuils et politique de promotion : à figer dans
-> `decisions_TEMPLATE.md` **avant** de coder.
+- `data/feedbacks_simules.csv`
+- `data/feedbacks.db`
+- `data/prod_scored.csv`
+- `data/lending_club_train.csv`
+- `data/reference_set.csv`
+- `models/pyrenex_risk_v2.joblib`
 
 ## 🔁 Boucle de rétroaction
 
@@ -60,31 +29,102 @@ flowchart LR
     C --> D[Stockage SQLite]
     D --> E{Seuil atteint ?}
     E -- Non --> F[Stop]
-    E -- Oui --> G[Creation dataset]
+    E -- Oui --> G[Construction dataset]
     G --> H[Train candidat]
-    H --> I[Contrat proba]
-    I --> J[Eval candidat]
-    J --> K{Promotion ?}
-    K -- Non --> L[Log + rejet]
-    K -- Oui --> M[Tag v2.1.0]
+    H --> I[Évaluation sur reference_set]
+    I --> J{Promotion ?}
+    J -- Non --> K[Log + rejet]
+    J -- Oui --> L[Modèle candidat promu]
 ```
 
-La boucle est donc : feedback → stockage → seuil → retrain → évaluation → promotion conditionnelle.
-Le réentraînement ne déclenche pas automatiquement le déploiement : le candidat n'est promu que s'il respecte la politique de qualité explicite.
+La logique est la suivante :
 
-## ✅ Réussite
+- un vrai label est collecté depuis l’API de feedback
+- il est validé et stocké
+- les feedbacks non consommés sont comptés
+- lorsque le seuil est atteint, un candidat est entraîné
+- le candidat et le modèle de production sont comparés sur le même `reference_set`
+- le modèle est promu uniquement selon la politique métier codée
 
-- `/feedback` accepte ≥ 200 annotations ; `request_id` inconnu → 404 ;
-  feedback contradictoire → 409 ; rejeu à l'identique → sans doublon.
-- Réentraînement **sur seuil de feedbacks non consommés** (199 → rien, 200 → trigger).
-- Le **candidat** est écrit séparément ; `v2.1.0` n'existe **que** s'il est promu.
-- La décision est une **fonction testée sur métriques mockées** (un cas promu,
-  un cas rejeté), et chaque exécution est **journalisée**.
-- Chaîne CI/CD M5 récupère le tag → Grafana voit v2.1.0.
-- **Les deux membres** ont contribué, switch des rôles visible, **journal de bord**.
-- Vous savez **défendre votre politique** — mardi, on confronte celles de tous
-  les binômes, et vous n'aurez pas tous le même verdict.
+## 🧩 Composants du projet
+
+### Feedback API
+
+Le service dans `services/feedback/app/main.py` expose :
+
+- `POST /feedback`
+- `GET /feedback/count`
+- `GET /health`
+
+Il valide :
+
+- `request_id` connu
+- label `0` ou `1`
+- idempotence sur doublon exact
+- rejet en cas de contradiction
+
+### Réentraînement
+
+Le script dans `scripts/retrain.py` :
+
+- charge les feedbacks SQLite
+- compte les feedbacks non consommés
+- construit le dataset d’apprentissage
+- entraîne un candidat séparé
+- évalue candidat et production sur le même `reference_set`
+- applique `decide_promotion()`
+- journalise la décision dans `decisions_log.jsonl`
+- ne crée un artefact promu que si la décision est positive
+
+### Politique de promotion
+
+La fonction dans `scripts/promotion.py` applique la règle métier :
+
+- plancher de qualité absolu
+- tolérance de régression sur `f1_macro` et `recall_default`
+- gain minimum exigé
+- promotion uniquement si le candidat est au moins aussi bon que le modèle actuel sur les métriques critiques
+
+## ✅ Critères de réussite
+
+- le service de feedback accepte et valide les vrais labels
+- un seuil de 200 nouveaux feedbacks déclenche bien le retrain
+- le candidat est évalué sur le même référentiel que la production
+- un rejet est une décision normale, pas un bug
+- un modèle candidat n’est promu qu’après validation métier
+
+## 🔔 Trigger de production
+
+Le trigger est documenté dans `crontab_TEMPLATE.txt` et le workflow GitHub Actions est fourni dans `.github/workflows/retrain.yml`.
+
+Exemple de cron :
+
+```bash
+0 */6 * * * cd /opt/pyrenex && .venv/bin/python scripts/retrain.py --min-feedback 200 >> logs/retrain.log 2>&1
+```
+
+Le workflow `retrain-on-feedback-threshold` se déclenche :
+
+- manuellement via `workflow_dispatch`
+- automatiquement toutes les 6 heures via cron
+
+## 📌 Décision métier actuelle
+
+Le document de décision métier est dans `decisions.md`.
+
+La politique retenue est la suivante :
+
+- `f1_macro >= 0.60`
+- `recall_default >= 0.60`
+- tolérance de régression = `0.01`
+- gain minimum = `0.01`
+
+Toute promotion doit être justifiée par ces seuils et par la comparaison sur le même `reference_set`.
 
 ## 📚 Ressources
 
-Voir [`./ressources/`](./ressources/) — 5 mini-cours + `liens_officiels.md`.
+- `decisions.md` : décision de business et justification du seuil
+- `scripts/promotion.py` : règle de promotion pure
+- `scripts/retrain.py` : retraining déclenché par seuil
+- `services/feedback/app/main.py` : collecte des vrais labels
+- `services/model/app/main.py` : API modèle M6

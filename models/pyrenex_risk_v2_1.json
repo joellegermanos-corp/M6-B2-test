@@ -1,0 +1,51 @@
+{
+  "config_name": "balanced",
+  "created_at": "2026-09-09T23:42:09.829705+00:00",
+  "dataset_sha256": "97d6cd7022c9f1ccd24b5e4e6ebddfe626c42cb9a5bd9e9636d116574c25210f",
+  "feature_columns_categorical": [
+    "term",
+    "grade",
+    "home_ownership",
+    "verification_status",
+    "purpose",
+    "emp_length"
+  ],
+  "feature_columns_numeric": [
+    "loan_amnt",
+    "int_rate",
+    "installment",
+    "annual_inc",
+    "dti",
+    "delinq_2yrs",
+    "fico_range_low",
+    "revol_util"
+  ],
+  "fit_time_sec": 0.35,
+  "hyperparameters": {
+    "class_weight": "balanced",
+    "max_depth": 10,
+    "min_samples_leaf": 10,
+    "n_estimators": 200,
+    "n_jobs": -1,
+    "random_state": 42
+  },
+  "metrics_holdout": {
+    "f1_macro": 0.6033378386319563,
+    "recall_default": 0.6813186813186813,
+    "roc_auc": 0.7275853730621457
+  },
+  "metrics_test_internal": {
+    "f1_default": 0.4287,
+    "f1_macro": 0.6104,
+    "roc_auc": 0.744
+  },
+  "model_name": "pyrenex_risk_v2",
+  "model_version": "v2.1.0",
+  "python_version": "3.12.12",
+  "sklearn_version": "1.5.1",
+  "target_column": "loan_status",
+  "target_mapping": {
+    "Charged Off": 1,
+    "Fully Paid": 0
+  }
+}

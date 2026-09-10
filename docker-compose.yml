@@ -1,0 +1,75 @@
+# Docker Compose pour le repo M6-B2
+# Stack de base : model + backend + feedback + observabilité.
+
+services:
+  model:
+    build:
+      context: .
+      dockerfile: ./services/model/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+
+  backend:
+    build: ./services/backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      MODEL_URL: "http://model:8000"
+      ALLOWED_ORIGINS: "http://localhost:8088,http://127.0.0.1:8088"
+    depends_on:
+      model:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+
+  feedback:
+    build: ./services/feedback
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      FEEDBACK_DB: "/data/feedbacks.db"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - model
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus

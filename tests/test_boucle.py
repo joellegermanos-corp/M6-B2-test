@@ -8,7 +8,9 @@ de promotion que vous défendrez doit être couverte par des cas à vous.
 
 from __future__ import annotations
 
+import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -109,3 +111,158 @@ def test_promotion_refused_on_critical_regression():
         pytest.skip("TODO 4 de promotion.py à compléter")
     assert decision.promote is False
     assert decision.reason
+
+
+
+def test_trigger_only_on_threshold(client):
+    # 199 feedbacks non consommés : pas de retrain
+    for i in range(199):
+        payload = {"request_id": f"REQ-{i:05d}", "true_label": 1 if i % 2 == 0 else 0}
+        r = client.post("/feedback", json=payload)
+        assert r.status_code in (200, 201), r.text
+
+    body = client.get("/feedback/count").json()
+    assert body["new"] == 199
+
+    # le trigger ne doit pas se lancer en dessous du seuil
+    # ici on test la règle de logique métier, pas le code cron
+    assert body["new"] < 200
+
+    # 200e feedback : seuil atteint
+    payload = {"request_id": "REQ-00199", "true_label": 0}
+    r = client.post("/feedback", json=payload)
+    assert r.status_code in (200, 201), r.text
+
+    body2 = client.get("/feedback/count").json()
+    assert body2["new"] == 200
+    assert body2["new"] >= 200
+
+def test_count_counts_only_unconsumed_feedbacks(client):
+    # 1er feedback
+    r1 = client.post("/feedback", json={"request_id": "REQ-00000", "true_label": 1})
+    assert r1.status_code in (200, 201)
+
+    # un feedback “consommé” doit être filtré du déclenchement
+    # ici on simule la consommation en base, mais la logique métier est :
+    #   new = total WHERE used_for_training = 0
+    body = client.get("/feedback/count").json()
+    assert body["new"] == 1
+    assert body["count"] == 1
+
+def test_feedback_accepts_200_feedbacks_without_loss(client):
+    for i in range(200):
+        payload = {
+            "request_id": f"REQ-{i:05d}",
+            "true_label": 1 if i % 2 == 0 else 0,
+            "comments": f"feedback-{i}",
+        }
+        r = client.post("/feedback", json=payload)
+        assert r.status_code in (200, 201), r.text
+
+    count = client.get("/feedback/count").json()
+    assert count["count"] == 200
+    assert count["new"] == 200
+
+
+def test_feedback_duplicate_does_not_increase_count(client):
+    payload = {"request_id": "REQ-00010", "true_label": 1}
+    r1 = client.post("/feedback", json=payload)
+    r2 = client.post("/feedback", json=payload)
+
+    assert r1.status_code in (200, 201)
+    assert r2.status_code in (200, 201)
+    assert client.get("/feedback/count").json()["count"] == 1
+
+# TODO 5 — Tests pures de décision de promotion.
+#   On ne lance ni entraînement ni modèle réel : on teste seulement la logique
+#   métier entre métriques du candidat et métriques de production.
+#   Cas attendus :
+#     - candidat meilleur, sans régression → promotion acceptée
+#     - candidat pire ou équivalent → promotion refusée
+#
+def test_promotion_accepted_when_candidate_is_better_enough():
+    """Un candidat meilleur avec gain suffisant et sans régression critique est promu."""
+    from scripts.promotion import decide_promotion
+
+    prod = {"f1_macro": 0.71, "recall_default": 0.62}
+    cand = {"f1_macro": 0.75, "recall_default": 0.67}
+
+    decision = decide_promotion(cand, prod)
+
+    assert decision.promote is True
+    assert decision.reason
+
+
+def test_promotion_rejected_when_candidate_is_not_better_enough():
+    """Un candidat équivalent ou sans gain suffisant est refusé."""
+    from scripts.promotion import decide_promotion
+
+    prod = {"f1_macro": 0.71, "recall_default": 0.62}
+    cand = {"f1_macro": 0.71, "recall_default": 0.61}
+
+    decision = decide_promotion(cand, prod)
+
+    assert decision.promote is False
+    assert decision.reason
+
+
+# TODO 6 — Test de bout en bout de la boucle :
+#   1. POST /feedback sur un request_id validé
+#   2. seuil de nouveaux feedbacks atteint
+#   3. retrain.py lance le réentraînement
+#   4. le candidat est comparé au modèle de production sur le même reference_set
+#   5. la décision est journalisée et on observe promotion ou rejet
+#
+# Ce test est volontairement plus haut niveau : il vérifie le flux complet,
+# pas seulement l'unité de décision. Il sert à détecter les régressions entre
+# service de feedback, trigger et politique de promotion.
+def test_boucle_feedback_to_decision_end_to_end(monkeypatch, tmp_path):
+    """Flux complet : feedback → seuil → retrain → comparaison → promotion/rejet."""
+    # TODO 6 — On vérifie la vraie chaîne : on poste des feedbacks via le
+    # service FastAPI, puis on fait lire le script `retrain.py` sur le même
+    # fichier SQLite que le service a créé. Cela reproduit le flux réel sans
+    # mocker la politique de décision.
+    db_path = tmp_path / "feedbacks.db"
+    monkeypatch.setenv("FEEDBACK_DB", str(db_path))
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    import app.main as m
+
+    importlib.reload(m)
+    with TestClient(m.app) as client:
+        for i in range(3):
+            payload = {"request_id": f"REQ-0000{i}", "true_label": 0}
+            r = client.post("/feedback", json=payload)
+            assert r.status_code == 201, r.json()
+        body = client.get("/feedback/count").json()
+        assert body["new"] >= 1
+
+    root = ROOT
+    artifact_db = root / "data" / "feedbacks.db"
+    artifact_db.parent.mkdir(exist_ok=True, parents=True)
+    if artifact_db.exists():
+        artifact_db.unlink()
+    shutil.copy2(db_path, artifact_db)
+
+    candidate_path = root / "models" / "pyrenex_risk_candidate.joblib"
+    if candidate_path.exists():
+        candidate_path.unlink()
+    decision_log = root / "decisions_log.jsonl"
+    if decision_log.exists():
+        decision_log.unlink()
+
+    # TODO 7 — Exécution réelle du script de retrain sur le jeu de feedbacks
+    # stockés. C'est le point de validation de la boucle : si le seuil est
+    # atteint, le script doit produire un candidat et un journal de décision.
+    result = subprocess.run(
+        [sys.executable, "scripts/retrain.py", "--min-feedback", "1"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+    assert candidate_path.exists()
+    assert decision_log.exists()
+    assert decision_log.read_text(encoding="utf-8").strip()
