@@ -21,8 +21,7 @@ on:
       - ".github/workflows/**"
   workflow_dispatch:
   schedule:
-    #- cron: '0 */6 * * *'
-    - cron: '*/5 * * * *'
+    - cron: '0 */6 * * *'
 
 jobs:
   run-tests:
@@ -90,7 +89,7 @@ jobs:
         run: |
           echo "Event: ${{ github.event_name }}"
 
-      - name: Trigger retraining if threshold is reached
+      - name: Retrain if feedback threshold is reached
         run: |
-          python scripts/retrain.py --min-feedback 2
+          python scripts/retrain.py --min-feedback 200
       

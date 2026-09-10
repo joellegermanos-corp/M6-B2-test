@@ -8,7 +8,7 @@
 # Le cron lance le script depuis la racine du projet avec le Python du venv.
 # Les sorties sont conservees dans logs/retrain.log.
 
-*/5 * * * * cd /opt/pyrenex && /opt/pyrenex/.venv/bin/python /opt/pyrenex/scripts/retrain.py --min-feedback 2 >> /opt/pyrenex/logs/retrain.log 2>&1
+0 */6 * * * cd /opt/pyrenex && /opt/pyrenex/.venv/bin/python /opt/pyrenex/scripts/retrain.py --min-feedback 200 >> /opt/pyrenex/logs/retrain.log 2>&1
 
 # Verification manuelle depuis /opt/pyrenex :
 #

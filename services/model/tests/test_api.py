@@ -15,8 +15,8 @@ MODELS_DIR = ROOT_MODELS_DIR if ROOT_MODELS_DIR.exists() else SERVICE_MODELS_DIR
 def _load_model_metadata():
     metadata_path = next(
         path for path in (
-            MODELS_DIR / "pyrenex_risk_v2_1.json",
             MODELS_DIR / "pyrenex_risk_v2.json",
+            MODELS_DIR / "pyrenex_risk_v2_1.json",
         )
         if path.exists()
     )
@@ -73,8 +73,8 @@ def test_predict_invalid_returns_422(client, valid_payload):
 def test_model_contract_features_and_output():
     metadata_path = next(
         path for path in (
-            MODELS_DIR / "pyrenex_risk_v2_1.json",
             MODELS_DIR / "pyrenex_risk_v2.json",
+            MODELS_DIR / "pyrenex_risk_v2_1.json",
         )
         if path.exists()
     )

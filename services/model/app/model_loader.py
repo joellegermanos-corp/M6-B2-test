@@ -7,8 +7,8 @@ from typing import Any
 import joblib
 
 MODEL_FILENAMES = (
-    ("pyrenex_risk_v2_1.joblib", "pyrenex_risk_v2_1.json"),
     ("pyrenex_risk_v2.joblib", "pyrenex_risk_v2.json"),
+    ("pyrenex_risk_v2_1.joblib", "pyrenex_risk_v2_1.json"),
 )
 
 

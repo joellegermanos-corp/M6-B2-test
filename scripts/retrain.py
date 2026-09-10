@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -113,6 +114,25 @@ def _log_decision(candidate_metrics: dict[str, float], production_metrics: dict[
         f.write(json.dumps(record, sort_keys=True) + "\n")
 
 
+def _mark_feedbacks_consumed(feedbacks: pd.DataFrame) -> None:
+    """Mark the feedbacks used by this run so the cron does not retrigger."""
+    db_path = DATA / "feedbacks.db"
+    if not db_path.exists():
+        return
+
+    request_ids = feedbacks.loc[
+        feedbacks["used_for_training"] == 0, "request_id"
+    ].tolist()
+    if not request_ids:
+        return
+
+    with sqlite3.connect(db_path) as con:
+        con.executemany(
+            "UPDATE feedbacks SET used_for_training = 1 WHERE request_id = ?",
+            ((request_id,) for request_id in request_ids),
+        )
+
+
 def _build_metadata(candidate_metrics: dict[str, float], training_df: pd.DataFrame) -> dict:
     """Write a JSON sidecar describing the promoted candidate."""
     production_json = MODELS / "pyrenex_risk_v2.json"
@@ -210,6 +230,7 @@ def main() -> int:
 
     decision = decide_promotion(candidate_metrics, production_metrics)
     _log_decision(candidate_metrics, production_metrics, {"promote": decision.promote, "reason": decision.reason})
+    _mark_feedbacks_consumed(feedbacks)
 
     # TODO 7 — Si PROMOTE : joblib.dump vers PROMOTED_PATH + métadonnées,
     #          (en prod : git tag v2.1.0 + push).
@@ -221,6 +242,8 @@ def main() -> int:
         metadata_path = PROMOTED_PATH.with_suffix(".json")
         with metadata_path.open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, sort_keys=True)
+        shutil.copy2(PROMOTED_PATH, PRODUCTION_PATH)
+        shutil.copy2(metadata_path, PRODUCTION_PATH.with_suffix(".json"))
         print(f"Promoted candidate: {PROMOTED_PATH}")
         return 0
 
