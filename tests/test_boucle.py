@@ -13,6 +13,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -204,6 +205,30 @@ def test_promotion_rejected_when_candidate_is_not_better_enough():
 
     assert decision.promote is False
     assert decision.reason
+
+
+def test_reference_set_is_the_frozen_m5_b2_dataset():
+    reference_path = ROOT / "data" / "reference_set.csv"
+    assert reference_path.exists()
+
+    rows = reference_path.read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 501  # header + 500 observations
+    assert hashlib.sha256(reference_path.read_bytes()).hexdigest() == (
+        "d91e211091c8f2ddf5c4ffa4b2276a7e489489bf5e22dc09fae03eb584016e7e"
+    )
+
+
+def test_degraded_candidate_evaluation_is_rejected():
+    result = subprocess.run(
+        [sys.executable, "scripts/evaluate_model.py", "--release-tag", "degraded", "--degrade"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert '"status": "failed"' in result.stdout
+    assert "f1_macro" in result.stdout
 
 
 # TODO 6 — Test de bout en bout de la boucle :

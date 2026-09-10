@@ -16,7 +16,10 @@ except ImportError:  # pragma: no cover - fallback when app is launched as top-l
 def _resolve_project_root() -> Path:
     current = Path(__file__).resolve()
     for candidate in (current.parent, *current.parents):
-        if (candidate / "models").exists():
+        models = candidate / "models"
+        has_promoted = (models / "pyrenex_risk_v2_1.joblib").exists() and (models / "pyrenex_risk_v2_1.json").exists()
+        has_production = (models / "pyrenex_risk_v2.joblib").exists() and (models / "pyrenex_risk_v2.json").exists()
+        if has_promoted or has_production:
             return candidate
     return current.parent.parent
 
@@ -33,7 +36,9 @@ MODEL_DIR_CANDIDATES = [
 
 def _resolve_model_dir() -> Path:
     for candidate in MODEL_DIR_CANDIDATES:
-        if (candidate / "pyrenex_risk_v2.joblib").exists() and (candidate / "pyrenex_risk_v2.json").exists():
+        has_promoted = (candidate / "pyrenex_risk_v2_1.joblib").exists() and (candidate / "pyrenex_risk_v2_1.json").exists()
+        has_production = (candidate / "pyrenex_risk_v2.joblib").exists() and (candidate / "pyrenex_risk_v2.json").exists()
+        if has_promoted or has_production:
             return candidate
     return ROOT_MODELS_DIR
 
@@ -45,7 +50,9 @@ META_PATH = MODELS_DIR / "pyrenex_risk_v2.json"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if not MODEL_PATH.exists() or not META_PATH.exists():
+    has_promoted = (MODELS_DIR / "pyrenex_risk_v2_1.joblib").exists() and (MODELS_DIR / "pyrenex_risk_v2_1.json").exists()
+    has_production = MODEL_PATH.exists() and META_PATH.exists()
+    if not has_promoted and not has_production:
         raise RuntimeError(f"Model artifacts missing in {MODELS_DIR}")
 
     app.state.model, app.state.metadata = load_model_and_metadata(MODELS_DIR)

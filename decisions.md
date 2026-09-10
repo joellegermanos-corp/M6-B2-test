@@ -28,23 +28,20 @@ pourquoi pas le total ? Parce que les feedbacks déjà utilisés pour l’appren
 ⭐ Second déclencheur « ou dérive confirmée » (bonus) : _non traité dans ce livrable_ —
 si traité, quelle fonction de M6-B1 est appelée ? On ajouterait un contrôle de dérive de distribution / drift check sur les scores de production et on relancerait le retrain si le drift dépasse un seuil défini par M6-B1.
 
-## Jeu de référence retenu (à figer AVANT tout le reste)
+## Jeu de référence retenu (figé avant la politique de promotion)
 
-**Jeu adopté** : _celui livré avec le template, `reference_set.csv`, 1500 lignes, 17,5 % de défauts_
-_ou_ _reference_set.csv de M5-B2 de 500 lignes, composition conforme à la base métier retenue_
+Le jeu retenu est `data/reference_set.csv`, issu du jeu M5-B2 :
 
-Le choix retenu dans ce projet est le référentiel standard du template, car il est stable, reproductible et utilisé comme point d’arbitrage unique pour le candidat et le modèle de production.
+- 500 lignes ;
+- 91 défauts, soit 18,2 % ;
+- SHA-256 : `D91E211091C8F2DDF5C4FFA4B2276A7E489489BF5E22DC09FAE03EB584016E7E`.
 
-**Pourquoi** : parce que l’évaluation d’un candidat doit se faire sur un support identique au niveau de la population et des distributions. Un autre référentiel ferait varier la base de comparaison, ce qui brouille le sens d’une promotion. Le même jeu de référence permet d’interpréter les écarts comme de vrais gains ou pertes de qualité.
+Ce jeu est utilisé sans modification pour évaluer le candidat et la production.
+Il n'entre jamais dans l'entraînement. Les seuils de promotion hérités de M5-B2
+s'appliquent donc à la même population que celle ayant servi à les calibrer.
 
-**Si vous avez gardé le jeu du template** : golden run regelé (`--freeze-baseline`)
-le modèle de production est figé sur le même `reference_set` et le bootstrap refait la comparaison sur la même base → tolérances recalculées : 0.01 de tolérance de régression, 0.01 de gain minimum, sans réécriture du référentiel.
-**Sinon**, vos seuils M5-B2 s'appliquent tels quels.
-
-> ⚠️ Le plancher de qualité de la politique de promotion vient de vos **seuils
-> M5-B2**, calibrés sur **votre** jeu. Mesurer les métriques sur un autre jeu
-> revient à comparer deux populations : sur un modèle **inchangé**, l'écart va
-> de 0.01 à 0.23 selon la composition. Un seul jeu, du début à la fin.
+Le `reference_set` du template de 1500 lignes n'est pas utilisé dans cette
+boucle ; aucun recalibrage ni `--freeze-baseline` n'est nécessaire.
 
 ## Politique de promotion
 
@@ -80,6 +77,11 @@ _(quel est le taux de défauts dans les données ?)_ — Parce que le dataset es
 | roc_auc | 0.82 | 0.80 | -0.02 |
 
 **Ce qu'on en conclut, en une phrase défendable devant Sophie Léger** : Le candidat n’a pas tenu les seuils métier sur les métriques critiques, donc il ne justifie pas une promotion et on garde le modèle actuel tant qu’il n’apporte pas de gain net et crédible.
+
+Le test du service modèle ne fige plus `v2.0.0` : il vérifie que la version
+annoncée par `/predict` et `/info` correspond aux métadonnées de l'artefact
+effectivement chargé. Cette assertion protège le contrat réel de l'API tout en
+permettant à l'artefact promu `v2.1.0` de remplacer la production.
 
 **Chemin de rejet démontré ?** _oui_ — comment : le candidat passe le seuil de déclenchement, est entraîné, évalué sur le même `reference_set`, puis rejeté parce qu’une régression critique dépasse la tolérance et qu’il n’apporte pas de gain suffisant.
 

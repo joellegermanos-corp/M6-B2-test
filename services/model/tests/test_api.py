@@ -13,7 +13,13 @@ MODELS_DIR = ROOT_MODELS_DIR if ROOT_MODELS_DIR.exists() else SERVICE_MODELS_DIR
 
 
 def _load_model_metadata():
-    metadata_path = MODELS_DIR / "pyrenex_risk_v2.json"
+    metadata_path = next(
+        path for path in (
+            MODELS_DIR / "pyrenex_risk_v2_1.json",
+            MODELS_DIR / "pyrenex_risk_v2.json",
+        )
+        if path.exists()
+    )
     return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
@@ -65,8 +71,16 @@ def test_predict_invalid_returns_422(client, valid_payload):
 
 
 def test_model_contract_features_and_output():
-    model = joblib.load(MODELS_DIR / "pyrenex_risk_v2.joblib")
-    meta = json.loads((MODELS_DIR / "pyrenex_risk_v2.json").read_text())
+    metadata_path = next(
+        path for path in (
+            MODELS_DIR / "pyrenex_risk_v2_1.json",
+            MODELS_DIR / "pyrenex_risk_v2.json",
+        )
+        if path.exists()
+    )
+    model_path = metadata_path.with_suffix(".joblib")
+    model = joblib.load(model_path)
+    meta = json.loads(metadata_path.read_text())
 
     cols = meta["feature_columns_numeric"] + meta["feature_columns_categorical"]
     row = {
