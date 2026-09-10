@@ -92,5 +92,5 @@ jobs:
 
       - name: Trigger retraining if threshold is reached
         run: |
-          python scripts/retrain.py --min-feedback 200
+          python scripts/retrain.py --min-feedback 2
       
