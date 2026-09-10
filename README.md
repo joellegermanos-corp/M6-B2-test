@@ -95,7 +95,10 @@ La fonction dans `scripts/promotion.py` applique la règle métier :
 
 ## 🔔 Trigger de production
 
-Le trigger est documenté dans `crontab_TEMPLATE.txt` et le workflow GitHub Actions est fourni dans `.github/workflows/retrain.yml`.
+Le trigger est documenté dans `crontab.txt` et le workflow GitHub Actions est fourni dans `.github/workflows/retrain.yml`.
+
+Le livrable `crontab.txt` contient la ligne cron, les chemins absolus, la
+redirection des logs et la procédure de test manuel de la garde-seuil.
 
 Exemple de cron :
 
