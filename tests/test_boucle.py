@@ -279,7 +279,7 @@ def test_boucle_feedback_to_decision_end_to_end(monkeypatch, tmp_path):
     if decision_log.exists():
         decision_log.unlink()
 
-    # TODO 7 — Exécution réelle du script de retrain sur le jeu de feedbacks
+    # Exécution réelle du script de retrain sur le jeu de feedbacks
     # stockés. C'est le point de validation de la boucle : si le seuil est
     # atteint, le script doit produire un candidat et un journal de décision.
     result = subprocess.run(
