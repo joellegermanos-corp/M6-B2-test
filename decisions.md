@@ -34,7 +34,7 @@ Le jeu retenu est `data/reference_set.csv`, issu du jeu M5-B2 :
 
 - 500 lignes ;
 - 91 défauts, soit 18,2 % ;
-- SHA-256 : `D91E211091C8F2DDF5C4FFA4B2276A7E489489BF5E22DC09FAE03EB584016E7E`.
+- SHA-256 canonique UTF-8 avec fins de ligne LF : `200624A71DE04A754893DAFC720007E6D66D6E7E63A38592F478D9223A30FC8B`.
 
 Ce jeu est utilisé sans modification pour évaluer le candidat et la production.
 Il n'entre jamais dans l'entraînement. Les seuils de promotion hérités de M5-B2

@@ -213,8 +213,9 @@ def test_reference_set_is_the_frozen_m5_b2_dataset():
 
     rows = reference_path.read_text(encoding="utf-8").splitlines()
     assert len(rows) == 501  # header + 500 observations
-    assert hashlib.sha256(reference_path.read_bytes()).hexdigest() == (
-        "d91e211091c8f2ddf5c4ffa4b2276a7e489489bf5e22dc09fae03eb584016e7e"
+    canonical_bytes = reference_path.read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(canonical_bytes).hexdigest() == (
+        "200624a71de04a754893dafc720007e6d66d6e7e63a38592f478d9223a30fc8b"
     )
 
 
